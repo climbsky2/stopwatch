@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>딥씨 스탑워치</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #eaf6ff;
+    background: linear-gradient(180deg,
+      #1c6a92 0%,
+      #135073 25%,
+      #0d3d5a 50%,
+      #0a2c42 75%,
+      #08202f 100%);
+  }
+
+  /* 물결치는 빛줄기 */
+  .light-rays {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(105deg, transparent 40%, rgba(120,200,255,0.06) 45%, transparent 50%),
+      linear-gradient(80deg, transparent 55%, rgba(120,200,255,0.05) 60%, transparent 66%),
+      linear-gradient(95deg, transparent 20%, rgba(140,220,255,0.04) 26%, transparent 32%);
+    animation: sway 14s ease-in-out infinite alternate;
+  }
+  @keyframes sway {
+    from { transform: translateX(-30px) skewX(-2deg); }
+    to   { transform: translateX(30px) skewX(2deg); }
+  }
+
+  /* 떠오르는 거품 */
+  .bubbles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .bubble {
+    position: absolute;
+    bottom: -40px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.5), rgba(180,225,255,0.08));
+    border: 1px solid rgba(200,235,255,0.15);
+    animation: rise linear infinite;
+  }
+  @keyframes rise {
+    0%   { transform: translateY(0) translateX(0) scale(0.6); opacity: 0; }
+    10%  { opacity: 0.7; }
+    50%  { transform: translateY(-45vh) translateX(20px) scale(1); }
+    90%  { opacity: 0.5; }
+    100% { transform: translateY(-100vh) translateX(-15px) scale(1.1); opacity: 0; }
+  }
+
+  /* 유영하는 입자(플랑크톤) */
+  /* 돌아다니는 물고기 */
+  .fish-tank { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+  .fish {
+    position: absolute;
+    left: -140px;
+    opacity: 0.55;
+    animation-name: swim;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    will-change: transform;
+  }
+  .fish .facing { display: block; animation: undulate 2.4s ease-in-out infinite; transform-origin: 75% 50%; }
+  .fish.rtl .facing { transform: scaleX(-1); }
+  .fish svg { display: block; filter: drop-shadow(0 0 10px rgba(70,150,200,0.3)); }
+  .fish .tail { animation: swish 1.1s ease-in-out infinite; transform-origin: 40px 30px; }
+  .fish .pec  { animation: paddle 1.6s ease-in-out infinite; transform-origin: 104px 34px; }
+  @keyframes swim {
+    0%   { transform: translateX(0)            translateY(0); }
+    25%  { transform: translateX(28vw)         translateY(-10px); }
+    50%  { transform: translateX(55vw)         translateY(6px); }
+    75%  { transform: translateX(82vw)         translateY(-7px); }
+    100% { transform: translateX(calc(100vw + 180px)) translateY(0); }
+  }
+  @keyframes swish {
+    0%,100% { transform: rotate(-9deg); }
+    50%     { transform: rotate(9deg); }
+  }
+  @keyframes undulate {
+    0%,100% { transform: rotate(-1.6deg); }
+    50%     { transform: rotate(1.6deg); }
+  }
+  .fish.rtl .facing { animation: undulate-rtl 2.4s ease-in-out infinite; }
+  @keyframes undulate-rtl {
+    0%,100% { transform: scaleX(-1) rotate(-1.6deg); }
+    50%     { transform: scaleX(-1) rotate(1.6deg); }
+  }
+  @keyframes paddle {
+    0%,100% { transform: rotate(-8deg); }
+    50%     { transform: rotate(14deg); }
+  }
+
+  .motes { position: fixed; inset: 0; pointer-events: none; }
+  .mote {
+    position: absolute;
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: rgba(160,220,255,0.6);
+    box-shadow: 0 0 6px rgba(120,200,255,0.8);
+    animation: drift ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    from { transform: translate(0, 0); }
+    to   { transform: translate(40px, -30px); }
+  }
+
+  /* ===== 새 색상 팔레트: 심해 앰버 다이버 워치 ===== */
+  :root {
+    --amber:   #f2b34a;
+    --amber-d: #c8871f;
+    --lume:    #ffe9b8;
+    --sec:     #ff6a3c;
+    --dial-0:  #10202b;
+    --dial-1:  #06121a;
+    --panel:   rgba(10, 24, 33, 0.5);
+  }
+
+  .app {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 26px;
+  }
+
+  .watch {
+    position: relative;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    padding: 14px;
+    background:
+      radial-gradient(circle at 38% 30%, rgba(255,225,170,0.18), transparent 55%),
+      linear-gradient(150deg, #4a3a1e, #1c150a 55%, #322411);
+    box-shadow:
+      0 30px 70px rgba(0,0,0,0.55),
+      inset 0 2px 4px rgba(255,220,160,0.25),
+      inset 0 -3px 8px rgba(0,0,0,0.6);
+  }
+  .dial { display: block; width: 100%; height: 100%;
+    filter: drop-shadow(0 0 30px rgba(242,179,74,0.15)); }
+
+  .digital {
+    position: absolute;
+    left: 0; right: 0;
+    top: 63%;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--lume);
+    text-shadow: 0 0 12px rgba(255,220,150,0.5);
+    pointer-events: none;
+  }
+  .digital .main { font-size: 26px; font-weight: 500; letter-spacing: 0.04em; }
+  .digital .ms   { font-size: 15px; color: var(--amber); }
+
+  .brand {
+    position: absolute;
+    left: 0; right: 0;
+    top: 30%;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4em;
+    color: var(--amber);
+    opacity: 0.8;
+    pointer-events: none;
+  }
+
+  .buttons { display: flex; gap: 14px; width: 320px; }
+  button {
+    flex: 1;
+    padding: 15px 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    border: 1px solid rgba(242,179,74,0.35);
+    border-radius: 14px;
+    cursor: pointer;
+    color: var(--lume);
+    background: rgba(60, 42, 16, 0.55);
+    transition: transform 0.1s, background 0.2s, box-shadow 0.2s;
+  }
+  button:hover { background: rgba(90, 62, 22, 0.7); box-shadow: 0 0 18px rgba(242,179,74,0.3); }
+  button:active { transform: scale(0.96); }
+  button:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
+  .btn-start { background: rgba(30, 96, 60, 0.6); border-color: rgba(120,240,180,0.35); color: #d7ffe8; }
+  .btn-stop  { background: rgba(150, 50, 40, 0.6); border-color: rgba(255,140,120,0.4); color: #ffe2da; }
+
+  .laps {
+    width: 320px;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+  .laps::-webkit-scrollbar { width: 4px; }
+  .laps::-webkit-scrollbar-thumb { background: rgba(242,179,74,0.35); border-radius: 2px; }
+  .lap {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 6px;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    border-bottom: 1px solid rgba(242,179,74,0.15);
+    color: #e8d6b4;
+  }
+  .lap .idx { color: var(--amber); }
+  .lap.best { color: #7dffbf; }
+  .lap.worst { color: #ff9d7d; }
+</style>
+</head>
+<body>
+  <div class="light-rays"></div>
+  <div class="fish-tank" id="fishTank"></div>
+  <div class="bubbles" id="bubbles"></div>
+  <div class="motes" id="motes"></div>
+
+  <div class="app">
+    <div class="watch">
+      <svg class="dial" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="dialFace" cx="0.5" cy="0.42" r="0.62">
+            <stop offset="0" stop-color="#12222d"/>
+            <stop offset="1" stop-color="#06121a"/>
+          </radialGradient>
+        </defs>
+        <circle cx="150" cy="150" r="144" fill="url(#dialFace)" stroke="#2a2010" stroke-width="3"/>
+        <g id="ticks"></g>
+        <g id="numerals" fill="#ffe9b8" font-family="Segoe UI, sans-serif" font-size="17"
+           font-weight="600" text-anchor="middle"></g>
+        <g id="minHand" transform="rotate(0 150 150)">
+          <line x1="150" y1="164" x2="150" y2="80" stroke="#ffe9b8" stroke-width="6" stroke-linecap="round"/>
+        </g>
+        <g id="secHand" transform="rotate(0 150 150)">
+          <line x1="150" y1="172" x2="150" y2="38" stroke="#ff6a3c" stroke-width="2.6" stroke-linecap="round"/>
+          <circle cx="150" cy="150" r="4.5" fill="#ff6a3c"/>
+        </g>
+        <circle cx="150" cy="150" r="7" fill="#1a130a" stroke="#f2b34a" stroke-width="2"/>
+      </svg>
+      <div class="brand">DEEP SEA</div>
+      <div class="digital"><span class="main" id="dMain">00:00</span><span class="ms" id="dMs">.00</span></div>
+    </div>
+    <div class="buttons">
+      <button class="btn-start" id="startStop">시작</button>
+      <button id="lapReset" disabled>랩</button>
+    </div>
+    <div class="laps" id="laps"></div>
+  </div>
+
+<script>
+  /* ---------- 배경 생성 ---------- */
+  const bubblesEl = document.getElementById('bubbles');
+  for (let i = 0; i < 26; i++) {
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = 4 + Math.random() * 18;
+    b.style.width = b.style.height = size + 'px';
+    b.style.left = Math.random() * 100 + 'vw';
+    b.style.animationDuration = (7 + Math.random() * 12) + 's';
+    b.style.animationDelay = (-Math.random() * 20) + 's';
+    bubblesEl.appendChild(b);
+  }
+  const motesEl = document.getElementById('motes');
+  for (let i = 0; i < 40; i++) {
+    const m = document.createElement('div');
+    m.className = 'mote';
+    m.style.left = Math.random() * 100 + 'vw';
+    m.style.top = Math.random() * 100 + 'vh';
+    m.style.opacity = 0.2 + Math.random() * 0.6;
+    m.style.animationDuration = (5 + Math.random() * 10) + 's';
+    m.style.animationDelay = (-Math.random() * 10) + 's';
+    motesEl.appendChild(m);
+  }
+
+  /* ---------- 물고기 ---------- */
+  const fishTank = document.getElementById('fishTank');
+  const fishColors = ['#6fb2c9', '#7fbf9a', '#c9a86f', '#9a8fc9', '#c98f8f', '#5f93c9'];
+  let fishId = 0;
+  function fishSVG(color) {
+    const id = 'f' + (fishId++);
+    return `<svg width="150" height="66" viewBox="0 0 150 66" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="body${id}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"   stop-color="${color}" stop-opacity="0.45"/>
+          <stop offset="0.4" stop-color="${color}" stop-opacity="1"/>
+          <stop offset="1"   stop-color="#0a2233" stop-opacity="0.92"/>
+        </linearGradient>
+        <radialGradient id="belly${id}" cx="0.5" cy="0.35" r="0.75">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <g class="tail">
+        <path d="M44 33 C30 24 20 14 9 8 C16 22 16 44 9 58 C20 52 30 42 44 33 Z"
+              fill="${color}" opacity="0.7"/>
+        <path d="M44 33 C34 27 26 20 16 13 C21 24 21 42 16 53 C26 46 34 39 44 33 Z"
+              fill="${color}" opacity="0.4"/>
+      </g>
+      <path class="dorsal" d="M66 15 C80 -1 100 3 116 15 C100 12 82 15 74 22 Z"
+            fill="${color}" opacity="0.55"/>
+      <path d="M70 48 C78 62 92 60 100 52 C92 50 82 46 78 40 Z"
+            fill="${color}" opacity="0.5"/>
+      <path class="body" d="M42 33
+          C60 12 92 8 118 16
+          C132 21 141 27 145 33
+          C141 39 132 45 118 50
+          C92 58 60 54 42 33 Z"
+          fill="url(#body${id})"/>
+      <path d="M60 44 C80 56 108 54 128 44 C112 52 82 54 60 44 Z" fill="url(#belly${id})"/>
+      <path class="pec" d="M108 35 C118 48 104 52 100 50 C99 43 103 37 108 35 Z"
+            fill="${color}" opacity="0.45"/>
+      <path d="M112 21 C108 30 108 37 112 46" stroke="#0a2233" stroke-opacity="0.35"
+            stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      <circle cx="128" cy="30" r="4" fill="#05161f"/>
+      <circle cx="129.4" cy="28.6" r="1.3" fill="#dff3ff" opacity="0.9"/>
+    </svg>`;
+  }
+  function spawnFish(count) {
+    for (let i = 0; i < count; i++) {
+      const f = document.createElement('div');
+      const rtl = Math.random() < 0.45;
+      f.className = 'fish' + (rtl ? ' rtl' : '');
+      const scale = 0.45 + Math.random() * 0.85;
+      const dur = (30 - scale * 9) + Math.random() * 16;
+      const beat = (0.9 + Math.random() * 0.6).toFixed(2);
+      f.style.top = (6 + Math.random() * 80) + 'vh';
+      f.style.opacity = 0.28 + Math.random() * 0.4;
+      f.style.animationDuration = dur + 's';
+      f.style.animationDelay = (-Math.random() * dur) + 's';
+      if (rtl) f.style.animationDirection = 'reverse';
+      f.innerHTML = `<div class="facing"><div style="transform:scale(${scale})">${fishSVG(fishColors[i % fishColors.length])}</div></div>`;
+      f.querySelectorAll('.tail, .pec, .facing').forEach(el => {
+        el.style.animationDuration = (el.classList.contains('facing') ? beat * 2 : el.classList.contains('pec') ? beat * 1.5 : beat) + 's';
+      });
+      fishTank.appendChild(f);
+    }
+  }
+  spawnFish(8);
+
+  /* ---------- 시계 눈금 그리기 ---------- */
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const ticksG = document.getElementById('ticks');
+  const numG = document.getElementById('numerals');
+  for (let i = 0; i < 60; i++) {
+    const a = i * 6 * Math.PI / 180;
+    const sin = Math.sin(a), cos = -Math.cos(a);
+    const major = i % 5 === 0;
+    const rOut = 138, rIn = major ? 123 : 132;
+    const ln = document.createElementNS(SVGNS, 'line');
+    ln.setAttribute('x1', 150 + rOut * sin);
+    ln.setAttribute('y1', 150 + rOut * cos);
+    ln.setAttribute('x2', 150 + rIn * sin);
+    ln.setAttribute('y2', 150 + rIn * cos);
+    ln.setAttribute('stroke', major ? '#f2b34a' : '#6a5a3a');
+    ln.setAttribute('stroke-width', major ? 3 : 1.5);
+    ln.setAttribute('stroke-linecap', 'round');
+    ticksG.appendChild(ln);
+  }
+  [[0, '60'], [15, '15'], [30, '30'], [45, '45']].forEach(([i, txt]) => {
+    const a = i * 6 * Math.PI / 180;
+    const t = document.createElementNS(SVGNS, 'text');
+    t.setAttribute('x', 150 + 102 * Math.sin(a));
+    t.setAttribute('y', 150 - 102 * Math.cos(a) + 6);
+    t.textContent = txt;
+    numG.appendChild(t);
+  });
+
+  /* ---------- 스탑워치 ---------- */
+  let startTime = 0, elapsed = 0, timerId = null, running = false, rafId = null;
+  let laps = [], lastLapTime = 0;
+
+  const dMain = document.getElementById('dMain');
+  const dMs = document.getElementById('dMs');
+  const secHand = document.getElementById('secHand');
+  const minHand = document.getElementById('minHand');
+  const startStop = document.getElementById('startStop');
+  const lapReset = document.getElementById('lapReset');
+  const lapsEl = document.getElementById('laps');
+
+  function format(ms) {
+    const totalCs = Math.floor(ms / 10);
+    const cs = totalCs % 100;
+    const totalSec = Math.floor(totalCs / 100);
+    const sec = totalSec % 60;
+    const min = Math.floor(totalSec / 60);
+    const pad = (n) => String(n).padStart(2, '0');
+    return { main: `${pad(min)}:${pad(sec)}`, ms: pad(cs) };
+  }
+  function render() {
+    const t = format(elapsed);
+    dMain.textContent = t.main;
+    dMs.textContent = '.' + t.ms;
+    const secAngle = (elapsed / 1000) * 6;
+    const minAngle = (elapsed / 60000) * 6;
+    secHand.setAttribute('transform', `rotate(${secAngle} 150 150)`);
+    minHand.setAttribute('transform', `rotate(${minAngle} 150 150)`);
+  }
+  function loop() {
+    elapsed = Date.now() - startTime;
+    render();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function start() {
+    running = true;
+    startTime = Date.now() - elapsed;
+    loop();
+    startStop.textContent = '정지';
+    startStop.className = 'btn-stop';
+    lapReset.textContent = '랩';
+    lapReset.disabled = false;
+  }
+  function stop() {
+    running = false;
+    cancelAnimationFrame(rafId);
+    elapsed = Date.now() - startTime;
+    render();
+    startStop.textContent = '시작';
+    startStop.className = 'btn-start';
+    lapReset.textContent = '초기화';
+  }
+  function reset() {
+    elapsed = 0; lastLapTime = 0; laps = [];
+    lapsEl.innerHTML = '';
+    render();
+    lapReset.textContent = '랩';
+    lapReset.disabled = true;
+  }
+  function addLap() {
+    const lapTime = elapsed - lastLapTime;
+    lastLapTime = elapsed;
+    laps.push(lapTime);
+    renderLaps();
+  }
+  function renderLaps() {
+    let best = -1, worst = -1;
+    if (laps.length > 1) {
+      let min = Infinity, max = -Infinity;
+      laps.forEach((l, i) => {
+        if (l < min) { min = l; best = i; }
+        if (l > max) { max = l; worst = i; }
+      });
+    }
+    lapsEl.innerHTML = laps.map((l, i) => {
+      const t = format(l);
+      let cls = 'lap';
+      if (i === best) cls += ' best';
+      if (i === worst) cls += ' worst';
+      return `<div class="${cls}"><span class="idx">랩 ${i + 1}</span><span>${t.main}.${t.ms}</span></div>`;
+    }).reverse().join('');
+  }
+
+  startStop.addEventListener('click', () => running ? stop() : start());
+  lapReset.addEventListener('click', () => running ? addLap() : reset());
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); running ? stop() : start(); }
+    if (e.code === 'KeyL') { running ? addLap() : reset(); }
+  });
+  render();
+</script>
+</body>
+</html>
